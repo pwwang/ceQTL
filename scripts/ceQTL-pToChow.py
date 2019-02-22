@@ -101,16 +101,17 @@ mutdata   = [r for r in mutreader if r[0] in mutgenes]
 mutreader.close()
 groupwriter = TsvWriter(outgroup)
 mutkids = lambda mut: {tf + '.' + g for g in mutgenes[mut] for tf in genetfs[g] if g in genes and tf != g}
-mutrs   = lambda mut: mut.split('_')[2]
+#mutrs   = lambda mut: mut.split('_')[2]
 def mutgt(mut, gt):
 	if gt == 'NA': return gt
 	ref, alt = mut.split('_')[-2:]
-	if gt == '2': return alt + alt + '(hom)'
-	if gt == '1': return ref + alt + '(het)'
-	return ref + ref + '(ref)'
+	if gt == '2': return alt + alt
+	if gt == '1': return ref + alt
+	return ref + ref
 for i, cname in enumerate(mutreader.cnames):
 	if i == 0:
-		groupwriter.cnames = ['.'.join([mutrs(r[0]), tfg]) for r in mutdata for tfg in mutkids(r[0])]
+		#groupwriter.cnames = ['.'.join([mutrs(r[0]), tfg]) for r in mutdata for tfg in mutkids(r[0])]
+		groupwriter.cnames = ['.'.join([r[0], tfg]) for r in mutdata for tfg in mutkids(r[0])]
 		groupwriter.writeHead()
 	else:
 		groupwriter.write([cname] + sum(([mutgt(r[0], r[i])] * len(mutkids(r[0])) for r in mutdata), []))
