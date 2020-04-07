@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "ceQTL"
+version = "0.0.1"
+description = "co-expression QTLs"
+authors = ["pwwang <pwwang@pwwang.com>"]
+license = "MIT"
+# include =
+
+[tool.poetry.dependencies]
+python = "^3.6"
+diot = "*"
+pyparam = "*"
+bioprocs = {git = "https://github.com/pwwang/bioprocs.git", branch = "development"}
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
+[tool.poetry.scripts]
+ceqtl = "ceqtl:main"
+ceqtl-tools = "ceqtl.tool:main"
+ceqtl-tool = "ceqtl.tool:main"
+ceqtl_tools = "ceqtl.tool:main"
+ceqtl_tool = "ceqtl.tool:main"
