@@ -343,7 +343,9 @@ commands.hg.bign.desc = ('The total number of records (background), '
 commands.hg.gold = commands.roc.gold
 
 ### Mediation analysis
-commands.med = 'Mediation analysis using SNPs as mediator'
+commands.med = 'Mediation/Moderation analysis using SNPs as mediator/moderator'
+commands.med.type = 'mediation'
+commands.med.type.desc = 'The type of analysis, mediation or moderation (med or mod for short)'
 commands.med.expr.required = True
 commands.med.expr.desc = ('The expression matrix, '
                           'with genes as rows and samples as columns.')
@@ -369,6 +371,41 @@ commands.med.runner = 'local'
 commands.med.runner.desc = ('The runner for the pipeline. '
                             'See https://pyppl.readthedocs.io/en/latest/runners/')
 commands.med.outfile = commands.decov.outfile
+
+### Differential binding affinitiy w/o mutations
+commands.atsnp = 'Calculate the differential binding affinitiy w/o the mutation.'
+commands.atsnp.infile.required = True
+commands.atsnp.infile.desc = 'The input file with the trios'
+commands.atsnp.snpcol = 'Case'
+commands.atsnp.snpcol.desc = 'The column where the SNPs are'
+commands.atsnp.tfcol = 'Factor'
+commands.atsnp.tfcol.desc = 'The column where the TFs are'
+commands.atsnp.pcol = 'Padj'
+commands.atsnp.pcol.desc = 'The column used for filtering'
+commands.atsnp.cut = 0.05
+commands.atsnp.cut.desc = 'Use records with `pcol` < `cut`'
+commands.atsnp.tflist = params.tflist
+commands.atsnp.tflist.show  = True
+commands.atsnp.motifdb = params.tfmotifs
+commands.atsnp.motifdb.show = True
+commands.atsnp.snpbed = GTQC.snpbed
+commands.atsnp.outfile = commands.decov.outfile
+
+### Pathway enrichment analysis
+commands.enrich = 'Pathway Enrichment Analysis'
+commands.enrich.infile.required = True
+commands.enrich.infile.desc = 'The input file with genesymbols'
+commands.enrich.infile.callback = (lambda opt, ps: '--outdir is required.'
+                                   if not ps.outdir.value else None)
+commands.enrich.gcol = 'Target'
+commands.enrich.gcol.desc = ('The column where the genes are. '
+                             'Could be index (0-based) or column name.')
+commands.enrich.pcol = commands.atsnp.pcol
+commands.enrich.cut = commands.atsnp.cut
+commands.enrich.dbs = ['KEGG_2019_Human']
+commands.enrich.dbs.desc = ('The databases the analyses run against.'
+                            'See http://amp.pharm.mssm.edu/Enrichr/#stats for availables dbs.')
+
 
 commands._.outdir.desc = 'The output directory'
 commands._.nthread = 1

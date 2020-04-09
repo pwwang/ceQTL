@@ -1,4 +1,4 @@
-"""Implementation of ceQTL-tools genotype-qc"""
+"""Implementation of ceQTL-tools expr-qc"""
 # pylint: disable=invalid-name,assigning-non-slot
 from pyppl import PyPPL
 from bioprocs.tsv import pMatrixR

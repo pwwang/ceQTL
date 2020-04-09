@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 from pyppl import PyPPL
 from bioprocs.utils import shell2 as shell
-from bioprocs.stats import pMediation, pAdjust
+from bioprocs.stats import pMediation, pAdjust, pModeration
 from bioprocs.tsv import (pTsvHeader,
                           pTsvJoin,
                           pTsvColSelect,
@@ -59,6 +59,7 @@ def common_samples(gtype, expr, transpose=False):
 def nosplit(opts):
     """Pipeline for no split job"""
 
+    med = 'med' in opts.type.lower()
     starts, ends = common_samples(opts.gtype, opts.expr, True)
 
     pTFTSG2MedCases.input = opts.tft, opts.snpgene
@@ -69,19 +70,24 @@ def nosplit(opts):
     pTsvCbind.args.fill = False
     pTsvCbind.args.fn2cname = 'function(fn, cnames) cnames'
 
-    pMediation.depends = pTsvCbind, pTFTSG2MedCases
-    pMediation.args.pval = opts.pcut
-    pMediation.args.plot = False
-    pMediation.args.nthread = opts.nthread
-    pMediation.output = ('outfile:file:%s, '
-                         'outdir:dir:{{i.infile | fn}}.mediation') % Path(opts.outfile).name
-    pMediation.config.export_dir = Path(opts.outfile).parent
-    pMediation.config.export_part = 'outfile'
+    pMed = pMediation if med else pModeration
+    pMed.depends = pTsvCbind, pTFTSG2MedCases
+    pMed.args.pval = opts.pcut
+    pMed.args.plot = False
+    pMed.args.nthread = opts.nthread
+    pMed.output = ('outfile:file:%s, '
+                   'outdir:dir:{{i.infile | fn}}.%s') % (
+                       Path(opts.outfile).name,
+                       'mediation' if med else 'moderation'
+                   )
+    pMed.config.export_dir = Path(opts.outfile).parent
+    pMed.config.export_part = 'outfile'
     return starts
 
 def splitjob(opts):
     """Pipeline for split job"""
 
+    med = 'med' in opts.type.lower()
     starts, ends = common_samples(opts.gtype, opts.expr)
 
     n_sg_pair = shell.wc_l(opts.snpgene).split()[0]
@@ -145,12 +151,13 @@ def splitjob(opts):
     pTsvCbind.args.fill = False
     pTsvCbind.args.fn2cname = 'function(fn, cnames) cnames'
 
-    pMediation.depends = pTsvCbind, pTFTSG2MedCases
-    pMediation.args.plot = False
-    pMediation.args.fdr = False
-    pMediation.args.pval = 1.1
+    pMed = pMediation if med else pModeration
+    pMed.depends = pTsvCbind, pTFTSG2MedCases
+    pMed.args.plot = False
+    pMed.args.fdr = False
+    pMed.args.pval = 1.1
 
-    pAdjust.depends = pMediation
+    pAdjust.depends = pMed
     pAdjust.input = lambda ch: [ch.outfile.flatten()]
     pAdjust.args.method = 'BH'
     pAdjust.args.pcol = 'Pval'
@@ -158,7 +165,9 @@ def splitjob(opts):
     # apply pcut
     pTsv.depends = pAdjust
     pTsv.args.inopts.cnames = True
-    pTsv.args.row = 'lambda row: float(row.Pval) < %f and float(row.PropMed) > 0' % opts.pcut
+    pTsv.args.row = 'lambda row: float(row.Pval) < %f %s' % (opts.pcut,
+                                                           'and float(row.PropMed) > 0'
+                                                           if med else '')
 
     pTsv.output = 'outfile:file:%s' % Path(opts.outfile).name
     pTsv.config.export_dir = Path(opts.outfile).parent

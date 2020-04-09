@@ -1,7 +1,6 @@
 """Plot ROC curves for different measurements"""
 
 # pylint: disable=invalid-name,assigning-non-slot
-from pathlib import Path
 from pyppl import PyPPL
 from bioprocs.tsv import pTsvColSelect, pTsvJoin, pTsvHeader, pTsv, pTsvCbind, pTsvReplaceHeader
 from bioprocs.common import pSort, pShell
@@ -76,6 +75,8 @@ def pipeline(opts):
 
     pROC.args.params.bestCut = False
     pROC.args.ggs.theme_bw = {}
+
+    pTsvCbind.args.inopts.dup = 'ignore'
 
     if not opts.sep:
         pSort.depends = ends

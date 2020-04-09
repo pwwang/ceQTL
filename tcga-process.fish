@@ -162,4 +162,53 @@ for pcut in 0.05 0.01 0.005 0.001
         --outdir TCGA/LUAD/16.c_eqtl.roc-$pcut
 end
 
+# 17. mediation/moderation analysis
+#   mediation
+$ceqtl_tools med \
+    --expr TCGA/LUAD/2.expr-qc/TCGA-LUAD.expr.txt \
+    --gtype TCGA/LUAD/1.genotype-qc/TCGA-LUAD.gt.txt \
+    --tft TCGA/LUAD/4.TCGA-LUAD.tf-gene.txt \
+    --snpgene TCGA/LUAD/5.TCGA-LUAD.snp-gene.txt \
+    --outfile TCGA/LUAD/17.medation.txt \
+    --njobs 100 \
+    --runner sge1d-thr1
+#   moderation
+$ceqtl_tools med \
+    --expr TCGA/LUAD/2.expr-qc/TCGA-LUAD.expr.txt \
+    --gtype TCGA/LUAD/1.genotype-qc/TCGA-LUAD.gt.txt \
+    --tft TCGA/LUAD/4.TCGA-LUAD.tf-gene.txt \
+    --snpgene TCGA/LUAD/5.TCGA-LUAD.snp-gene.txt \
+    --outfile TCGA/LUAD/17.moderation.txt \
+    --njobs 100 \
+    --runner sge1d-thr1 \
+    --type mod
 
+# 18. roc using mediation/moderation as gold standards
+$ceqtl_tools roc \
+    --infiles TCGA/LUAD/9.decov.aggrchow.txt \
+    --cols Padj \
+    --gold (cat TCGA/LUAD/17.medation.txt   | cut -f2 | sort -u | psub) \
+    --outdir TCGA/LUAD/18.mediation.roc
+$ceqtl_tools roc \
+    --infiles TCGA/LUAD/9.decov.aggrchow.txt \
+    --cols Padj \
+    --gold (cat TCGA/LUAD/17.moderation.txt  | cut -f2 | sort -u | psub) \
+    --outdir TCGA/LUAD/18.moderation.roc
+
+# 19. atsnp analysis
+$ceqtl_tools atsnp \
+    --infile TCGA/LUAD/8.decov.chow.txt \
+    --snpbed TCGA/LUAD/1.genotype-qc/TCGA-LUAD.snp.bed \
+    --outfile TCGA/LUAD/19.atsnp.txt \
+    --nthread 20
+
+# 20. use atsnp as gold standard
+for pcut in 0.05 0.01 0.005 0.001
+    $ceqtl_tools roc \
+        --infiles (awk '{print $1"_"$2"\t"$0}' TCGA/LUAD/8.decov.chow.txt | psub) \
+        --cols Padj \
+        --gold (awk "\$6 < $pcut {print \$1\"_\"\$2\"\t\"\$0}" TCGA/LUAD/19.atsnp.txt | psub) \
+        --outdir TCGA/LUAD/20.atsnp.roc-$pcut
+end
+
+# 21. pathway enrichment analysis
