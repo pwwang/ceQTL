@@ -100,3 +100,4 @@ site/
 TCGA/
 poetry.lock
 simulated/
+.history/
