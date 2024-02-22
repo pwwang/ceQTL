@@ -1,0 +1,16 @@
+# --expr "./ceqtl_simulate-output/DiffCoexprSimulation/simulated_expr.txt" \
+# --geno "./ceqtl_simulate-output/GenoSimulation/25_50xcases_50xctrls.plink_sim/gtmat.txt" \
+# --tftarget "./ceqtl_simulate-output/DiffCoexprSimulation/simulated_tftargets.gmt" \
+# --snpgene "./ceqtl_simulate-output/DiffCoexprSimulation/simulated_snpgenes.gmt" \
+# --nchunks 8
+
+forks = 8
+
+[DataPreparation.envs]
+transpose_geno = true
+
+[ChowTest]
+
+[InteractionLm]
+
+[LiquidAssoc]
