@@ -8,6 +8,7 @@ genofile <- {{in.genofile | r}}
 exfile <- {{out.exfile | r}}
 snpgenefile <- {{out.snpgenefile | r}}
 tftargetfile <- {{out.tftargetfile | r}}
+truthfile <- {{out.truthfile | r}}
 
 seed <- {{envs.seed | r}}
 ncores <- {{envs.ncores | r}}
@@ -17,14 +18,33 @@ nregulator_range <- {{envs.nregulator_range | r}}
 ntarget_range <- {{envs.ntarget_range | r}}
 gene_prefix <- {{envs.gene_prefix | r}}
 gene_index_start <- {{envs.gene_index_start | r}}
-bionoise <- {{envs.bionoise | r}}
-expnoise <- {{envs.expnoise | r}}
+noise <- {{envs.noise | r}}
 transpose_exprs <- {{envs.transpose_exprs | r}}
 
 set.seed(seed)
 registerDoParallel(cores=24)
 
 #### Generate genotype matrix
+suppressPackageStartupMessages({
+    library(Rfast)
+    library(optimg)
+    library(parallel)
+})
+
+#' Generate a group matrix, with rows representing cases and
+#' columns representing samples.
+#'
+#' @param x An integer, number of cases to generate
+#' @param nsamples An integer, number of samples to generate
+#' @param ngroups_range An integer vector of length 1 or 2, range of number
+#'   of groups per each case
+#' @param group_minsample An integer, minimum number of samples per group
+#' @param sample_prefix A string, prefix for sample names
+#' @param sample_index_start An integer, starting index for sample names
+#' @param case_prefix A string, prefix for case names
+#' @param case_index_prefix An integer, starting index for case names
+#' @return A data frame, with rows representing cases and columns representing
+#' @export
 as_groupmat.int <- function(
     x,
     nsamples,
@@ -46,8 +66,14 @@ as_groupmat.int <- function(
         } else {
             ngroups <- sample(x = ngroups_range[1]:ngroups_range[2], size = 1)
         }
+        if (ngroups * group_minsample > nsamples) {
+            stop("ngroups * group_minsample > nsamples")
+        }
         probs <- 0
-        while (min(probs) < minprob) { probs <- rnorm(ngroups) }
+        while (min(probs) < minprob) {
+            probs <- rnorm(ngroups)
+            probs <- probs / sum(probs)
+        }
         case <- list(ngroups = ngroups, probs = probs)
         cases[[casename]] <- case
     }
@@ -59,6 +85,16 @@ as_groupmat.int <- function(
     )
 }
 
+#' @param x A list of cases, each case is a list with elements ngroups and
+#'   probs to draw samples for each group
+#' @param nsamples An integer, number of samples to generate
+#' @param probs_fn A function or string, function to generate probabilities
+#'   for each group, or a string to be evaluated as a function
+#' @param group_minsample An integer, minimum number of samples per group
+#' @param sample_prefix A string, prefix for sample names
+#' @param sample_index_start An integer, starting index for sample names
+#' @return A data frame, with rows representing cases and columns representing
+#' @export
 as_groupmat.list <- function(
     x,
     nsamples,
@@ -78,7 +114,10 @@ as_groupmat.list <- function(
         probs <- case$probs
         if (is.null(probs)) {
             probs <- 0
-            while (min(probs) < minprob) { probs <- probs_fn(ngroups) }
+            while (min(probs) < minprob) {
+                probs <- probs_fn(ngroups)
+                probs <- probs / sum(probs)
+            }
         } else if (length(probs) == ngroups - 1) {
             probs <- c(probs, 1 - sum(probs))
         }
@@ -86,11 +125,15 @@ as_groupmat.list <- function(
         groupmat <- rbind(groupmat, groups)
         rownames(groupmat)[nrow(groupmat)] = n
     }
+    groupmat <- as.data.frame(groupmat)
     colnames(groupmat) <- samples
 
     return(groupmat)
 }
 
+#' @param x A data frame
+#' @return The input data frame
+#' @export
 as_groupmat.data.frame <- function(x, ...) { x }
 
 invisible(setGeneric("as_groupmat", function(x, ...) standardGeneric("as_groupmat")))
@@ -101,140 +144,271 @@ setMethod("as_groupmat", "data.frame", as_groupmat.data.frame)
 ### End of as_groupmat
 
 
-
-add_bionoise <- function(x, lnorm){
-    if (all(lnorm == 1)) {
-        return(x)
-    }
-
-    #transformation fn
-    f <- function(a, b){
-        fnval = a * exp(-0.01 *( 1 - a/(1 - a))) - b
-        return(fnval)
-    }
-    optf <- function(a, b){
-        fnval = a * exp(-0.01 *( 1 - a/(1 - a))) - b
-        return(abs(fnval))
-    }
-
-    #transformation
-    y = x
-    tfx = x>=0.65
-    y[tfx] = f(x[tfx], 0)
-    y[!tfx] = x[!tfx]
-
-    #apply lognormal noise
-    newy = y * lnorm
-
-    #inverse transformation
-    newx = x
-    tfy = newy>=0.65
-    newx[tfy] = unlist(sapply(newy[tfy], function (a)
-        optim(
-        runif(1),
-        optf,
-        b = a,
-        lower = 0,
-        upper = 1,
-        method = 'Brent',
-        control = list('abstol' = 1E-8)
-        )$par))
-    newx[!tfy] = newy[!tfy]
-    return(newx)
-}
-
-corr_fun <- function(x, slope, intercept){
-    return(slope * x + intercept)
-}
-
-ode <- function(exprs, slopes, intercepts, lnnoise){
-    rates <- exprs
-    pairs <- names(slopes)
-    for (pair in pairs) {
-        gs <- strsplit(pair, " -> ")[[1]]
-        slope <- slopes[pair]
-        intercept <- intercepts[pair]
-        if (slope > 0) {
-            rates[gs[2]] <- add_bionoise(
-                corr_fun(exprs[gs[1]], slope, intercept), lnnoise[gs[2]]
-            ) - rates[gs[2]]
-        } else {
-            rates[gs[2]] <- add_bionoise(
-                1 - corr_fun(exprs[gs[1]], -slope, intercept), lnnoise[gs[2]]
-            ) - rates[gs[2]]
+#' Generate expected correlations for each case and gene pairs
+#'
+#' @param groupmat A group matrix. Columns are samples and rows are cases.
+#'   The values are usually starting from 1 and represent the group of the samples.
+#' @param npair_range A vector of length 2. The range of the number of gene pairs
+#'   for each case.
+#' @param gene_pairs A data frame with rows as regulators and columns as targets.
+#'   The values are binary indicating whether the regulator regulates the target.
+#' @param mincordiff A numeric, the minimum difference between the expected
+#' @return A list of lists. The outer list has the same names as the rows of groupmat,
+#'   which is the case names. The inner list is a list of data frames. The names of
+#'   the inner list are sample groups. The data frames have the same dimension as
+#'   gene_pairs. The values are the expected correlations between the regulators and
+#'   the targets.
+#' @export
+generate_params <- function(groupmat, npair_range, gene_pairs, mincordiff = 0.5) {
+    find_unmet_idx <- function(corvecs, idxes) {
+        combined <- combn(names(corvecs), 2)
+        diff <- NULL
+        for (i in seq_len(ncol(combined))) {
+            pair <- combined[, i]
+            if (is.null(diff)) {
+                diff <- abs(corvecs[[pair[1]]] - corvecs[[pair[2]]])
+            } else {
+                # element-wise max
+                diff <- pmax(diff, abs(corvecs[[pair[1]]] - corvecs[[pair[2]]]))
+            }
         }
+        return (seq_along(diff)[diff < mincordiff])
     }
-    return(rates)
-}
-
-generate_params <- function(groupmat, npair_range, gene_pairs) {
     out = list()
     # list(
-    #    c1 = list( "g1 -> g2": list(1 => c(slope, intercept), 2 => c(slope, intercept)) )
+    #    c1 = list(
+    #       1 = cordf1,
+    #       2 = cordf2,
+    #       3 = cordf3
+    #    ),
+    #    c2 = ...
     # )
+    #
+    # cordf:
+    #      g1  g2  g3
+    # tf1  .1  .2  .3
+    # tf2  .4  .5  .6
+    # ...
+    allgps <- as.vector(as.matrix(gene_pairs))
+    # The edges of the network
+    allindexes <- seq_along(allgps)[allgps == 1]
     for (cs in rownames(groupmat)) {
-        ugroups <- unique(unlist(groupmat[cs, ]))
-        ngroups <- length(ugroups)
+        ugroups <- as.character(sort(unique(unlist(groupmat[cs, ]))))
         npairs <- sample(npair_range[1]:npair_range[2], 1)
-        gps <- sample(gene_pairs, npairs, replace = FALSE)
-        out[[cs]] = list()
-        for (gp in gps) {
-            slopes <- runif(ngroups, -1, 1)
-            while(max(apply(combn(slopes, 2), 2, function(x) abs(x[1] - x[2]))) < 0.5) {
-                slopes <- runif(ngroups, -1, 1)
+
+        # pick the edges for the case
+        pair_idxes <- sample(allindexes, npairs)
+
+        # generate random correlations
+        out[[cs]] = lapply(ugroups, function(g) runif(length(pair_idxes), -1 , 1))
+        names(out[[cs]]) <- ugroups
+        idxes <- find_unmet_idx(out[[cs]], seq_len(pair_idxes))
+        while (length(idxes) > 0) {
+            for (g in names(out[[cs]])) {
+                out[[cs]][[g]][idxes] <- runif(length(idxes), -1, 1)
             }
-            intersects <- runif(ngroups, -1, 1)
-            out[[cs]][[gp]] = lapply(seq_len(ngroups), function(i) c(slopes[i], intersects[i]))
+            idxes <- find_unmet_idx(out[[cs]], idxes)
         }
+        out[[cs]] <- lapply(out[[cs]], function(x) {
+            corvecs <- rep(NA, length(allgps))
+            corvecs[pair_idxes] <- x
+            corvecs <- matrix(corvecs, nrow = nrow(gene_pairs))
+            colnames(corvecs) <- colnames(gene_pairs)
+            rownames(corvecs) <- rownames(gene_pairs)
+            # remove all columns with NAs
+            corvecs <- corvecs[, colSums(is.na(corvecs)) < nrow(corvecs), drop = FALSE]
+            # remove all rows with NAs
+            corvecs <- corvecs[rowSums(is.na(corvecs)) < ncol(corvecs), , drop = FALSE]
+            return(corvecs)
+        })
     }
 
     return(out)
 }
 
-get_params_by_sample <- function(pms, samplegroup) {
-    ## params
-    # list( "g1 -> g2": list(1 => c(slope, intercept), 2 => c(slope, intercept)) )
-    pairs = names(pms)
-    slopes = sapply(pairs, function(x) pms[[x]][[samplegroup]][1])
-    intercepts = sapply(pairs, function(x) pms[[x]][[samplegroup]][2])
-    names(slopes) = pairs
-    names(intercepts) = pairs
-    return(list(slopes = slopes, intercepts = intercepts))
-}
-
+#' Convert gene pairs data frame to a data frame that can be saved as a GMT file
+#'
+#' @param gene_pairs A dataframe with rows as regulators and columns as targets.
+#'   The values are binary indicating whether the regulator regulates the target.
+#' @return A data frame with 3 columns. The first column is the regulator, the second
+#'   column is empty, and the third column is a string of targets separated by tabs.
+#' @export
 genepairs_to_gmt <- function(gene_pairs) {
     # convert to gmt dataframe
     # gene_pairs = c("g1 -> g2", "g1 -> g3", "g2 -> g3")
-    out <- list()
-    for (pair in gene_pairs) {
-        genes <- strsplit(pair, " -> ")[[1]]
-        out[[genes[1]]] <- c(out[[genes[1]]], genes[2])
+    out <- c()
+    for (reg in rownames(gene_pairs)) {
+        targets <- colnames(gene_pairs[, gene_pairs[reg, ] == 1, drop = FALSE])
+        out <- rbind(out, data.frame(
+            V1 = reg,
+            V2 = "",
+            V3 = paste(targets, collapse = "\t")
+        ))
     }
-    return (data.frame(
-        V1 = names(out),
-        V2 = "",
-        V3 = unlist(lapply(out, function(x) paste(x, collapse = "\t")))
-    ))
+    return(out)
 }
 
+#' Convert params to a data frame that can be saved as a GMT file
+#'
+#' @param params A list of lists. The outer list has the same names as the rows of
+#'   groupmat, which is the case names. The inner list is a list of data frames. The
+#'   names of the inner list are sample groups.
+#' @return A data frame with 3 columns. The first column is the case name, the second
+#'   column is empty, and the third column is a string of regulators separated by tabs.
 params_to_gmt <- function(params) {
     # convert to gmt dataframe
     # params = list(
-    #    c1 = list( "g1 -> g2": list(1 => c(slope, intercept), 2 => c(slope, intercept)) )
+    #    c1 = list(`1` => cordf1, `2` => cordf2, `3` => cordf3)
     # )
-    out <- list()
+    # cordf:
+    #     g1  g2  g3
+    # tf1 NA  .2  .3
+    # tf2 .4  .5  NA
+    out <- c()
     for (cs in names(params)) {
-        pairs <- names(params[[cs]])
-        regulators <- unique(sapply(pairs, function(x) strsplit(x, " -> ")[[1]][1]))
-        out[[cs]] <- paste(regulators, collapse = "\t")
+        targets <- colnames(params[[cs]][["1"]])
+        out <- rbind(out, data.frame(
+            V1 = cs,
+            V2 = "",
+            V3 = paste(targets, collapse = "\t")
+        ))
     }
-    return (data.frame(
-        V1 = names(out),
-        V2 = "",
-        V3 = unlist(out)
-    ))
+    return (out)
 }
 
+
+#' The cost function to minimize
+#'
+#' @param weights A numeric vector, the weights for the expression matrix
+#' @param x A numeric matrix, the expression matrix
+#' @param corrs A list of lists. The outer list has the same names as the rows of
+#'   groupmat, which is the case names. The inner list is a list of data frames. The
+#'   names of the inner list are sample groups.
+#' @param groupmat A group matrix. Columns are samples and rows are cases.
+#'  The values are usually starting from 1 and represent the group of the samples.
+#' @param costfn A string, the cost function to use. It can be "ew" for element-wise
+#'   cost, or "cor" for correlation cost.
+#' @param ncores An integer, the number of cores to use for parallel computing
+#' @return A numeric, the cost
+cost_fn <- function(weights, x, corrs, groupmat, costfn, ncores){
+    # corrs = list(
+    #    c1 = list( 1 => cordf1, 2 => cordf2, 3 => cordf3)
+    # )
+    # cordf:
+    #     g1  g2  g3
+    # tf1 NA  .2  .3
+    # tf2 .4  .5  NA
+    # x:
+    #    g1 g2 g3
+    # s1 .1 .2 .3
+    # s2 .4 .5 .6
+    # groupmat:
+    #       s1	s2	s3
+    # Case1	3	1	1
+    # Case2	1	3	2
+    # Case3	1	3	3
+    x <- weights * x
+    # Spread the case and its groups for parallel computing
+    args <- list()
+    for (cs in names(corrs)) {
+        args <- c(args, lapply(names(corrs[[cs]]), function(gp) c(cs, gp)))
+    }
+    # print(args)
+
+    #' Calculate the cost (A * x + e - b)^2 (element-wise) for each case and group
+    #'
+    #' @param case A string, the case name
+    #' @param group A string, the group name (typically 1, 2, 3, ...)
+    #' @return A numeric, the cost for the case and group
+    ew_cost <- function(case, group) {
+        samples <- names(groupmat)[as.character(groupmat[case, ]) == group]
+        corrs <- corrs[[case]][[group]]
+        out <- 0
+        for (reg in rownames(corrs)) {
+            if (ncol(corrs) == 1) {
+                cors <- corrs[reg, ]
+                names(cors) <- colnames(corrs)
+            } else {
+                cors <- corrs[reg, ]
+            }
+            cors <- cors[!is.na(cors)]
+            targets <- names(cors)
+            rexp <- x[samples, reg]
+            rexp[rexp < 0] <- 0
+            # spread the targets into columns
+            texp <- rexp %*% matrix(cors, nrow = 1)
+            texp[texp < 0 & !is.na(texp)] <- 1 + texp[texp < 0 & !is.na(texp)]
+            cost <- texp - x[samples, targets]
+            out <- out + sum(cost^2)
+        }
+        out
+    }
+
+    #' Calculate the cost (cor(A, B) - c0)^2 for each case and group
+    #'
+    #' @param case A string, the case name
+    #' @param group A string, the group name (typically 1, 2, 3, ...)
+    #' @return A numeric, the cost for the case and group
+    cor_cost <- function(case, group) {
+        samples <- names(groupmat)[as.character(groupmat[case, ]) == group]
+        corrs <- corrs[[case]][[group]]
+        out <- 0
+        for (reg in rownames(corrs)) {
+            if (ncol(corrs) == 1) {
+                cors <- corrs[reg, ]
+                names(cors) <- colnames(corrs)
+            } else {
+                cors <- corrs[reg, ]
+            }
+            cors <- cors[!is.na(cors)]
+            targets <- names(cors)
+            rexp <- x[samples, reg]
+            # In case there is only one target
+            c1 <- correls(rexp, matrix(x[samples, targets], ncol = length(targets)))[, 1]
+            out <- out + (c1 - cors)^2
+        }
+        out
+    }
+
+    costfn <- match.arg(costfn, c("ew", "cor"))
+    costfn <- ifelse(costfn == "ew", ew_cost, cor_cost)
+    sum(unlist(mclapply(args, function(arg) {
+        costfn(arg[[1]], arg[[2]])
+    })))
+    # sum(unlist(lapply(args, function(arg) {
+    #     costfn(arg[[1]], arg[[2]])
+    # })))
+}
+
+#' Simulate dataset
+#'
+#' @param groupmat A group matrix. Columns are samples and rows are cases.
+#'   The values are usually starting from 1 and represent the group of the samples.
+#' @param ngenes An integer, total number of genes to simulate
+#' @param npair_range An integer vector of length 1 or 2, range of number of gene pairs
+#'   for each case
+#' @param nregulator_range An vector of length 1 or 2, fraction of all genes to be
+#'   regulators
+#' @param ntarget_range An integer vector of length 1 or 2, range of number of targets
+#'   for each regulator
+#' @param gene_prefix A string, prefix for gene names
+#' @param gene_index_start An integer, starting index for gene names
+#' @param noise A numeric, the standard deviation of the noise to add to the expression
+#'   matrix
+#' @param maxiter An integer, the maximum number of iterations for optimization
+#' @param costfn A string, the cost function to use. It can be "ew" for element-wise
+#'   cost, or "cor" for correlation cost.
+#' @param ncores An integer, the number of cores to use for parallel computing
+#' @param verbose A logical, whether to print the optimization progress
+#' @return A list with the following elements:
+#'   - emat: A numeric matrix, the expression matrix
+#'   - regulator_targets: A data frame with 3 columns. The first column is the
+#'     regulator, the second column is empty, and the third column is a string of
+#'     targets separated by tabs.
+#'   - case_regulators: A data frame with 3 columns. The first column is the case name,
+#'     the second column is empty, and the third column is a string of regulators
+#'     separated by tabs.
+#' @export
 sim_dataset <- function(
     groupmat,
     ngenes,
@@ -243,97 +417,81 @@ sim_dataset <- function(
     ntarget_range = c(10, 25),
     gene_prefix = "Gene",
     gene_index_start = 1,
-    bionoise = 0.05,
-    expnoise = 0.05
+    noise = 0.05,
+    maxiter = 100,
+    costfn = "ew",
+    ncores = 1,
+    verbose = FALSE
 ) {
     nsamples <- ncol(groupmat)
 
     genes <- paste0(gene_prefix, (1:ngenes) + gene_index_start - 1)
     ngenes <- length(genes)
     if (length(nregulator_range) == 1) { nregulator_range <- rep(nregulator_range, 2) }
+    # Select genes as regulators
     reg_genes <- sample(
         genes,
         size = as.integer(ngenes * runif(1, nregulator_range[1], nregulator_range[2])),
         replace = FALSE
     )
+    rest_genes <- genes[!genes %in% reg_genes]
     if (length(ntarget_range) == 1) { ntarget_range <- rep(ntarget_range, 2) }
-
-    log_info("Generating regulator-gene pairs ...")
-    gene_pairs <- unlist(lapply(reg_genes, function(reg_gene) {
+    # an adjacency matrix for regulator -> targets
+    gene_pairs <- matrix(0, nrow = length(reg_genes), ncol = length(rest_genes))
+    gene_pairs <- as.data.frame(gene_pairs)
+    colnames(gene_pairs) <- rest_genes
+    rownames(gene_pairs) <- reg_genes
+    for (reg in reg_genes) {
         targets <- sample(
-            genes,
+            rest_genes,
             size = sample(ntarget_range[1]:ntarget_range[2], 1),
             replace = FALSE
         )
-        paste0(reg_gene, " -> ", targets)
-    }))
+        gene_pairs[reg, targets] <- 1
+    }
+    # remove columns with all zeros
+    gene_pairs <- gene_pairs[, colSums(gene_pairs) > 0, drop = FALSE]
+    # remove rows with all zeros
+    gene_pairs <- gene_pairs[rowSums(gene_pairs) > 0, , drop = FALSE]
 
     if (length(npair_range) == 1) { npair_range <- rep(npair_range, 2) }
-
-    log_info("Randomizing parameters for gene pairs ...")
     params <- generate_params(groupmat, npair_range, gene_pairs)
 
-    lnnoise = exp(rnorm(nsamples * ngenes, 0, bionoise))
-    lnnoise = matrix(lnnoise, nrow = nsamples, byrow = T)
-    colnames(lnnoise) = genes
-
-    log_info("Initializing gene expression ...")
     emat <- rbeta(ngenes * nsamples, 2, 2)
     emat[emat < 0] <- 0
     emat[emat > 1] <- 1
-    emat <- matrix(emat, nrow = ngenes)
-    rownames(emat) <- genes
+    emat <- matrix(emat, ncol = ngenes)
+    colnames(emat) <- genes
+    rownames(emat) <- colnames(groupmat)
+    optgenes <- c(rownames(gene_pairs), colnames(gene_pairs))
+    exprs <- emat[, optgenes, drop = FALSE]
 
-    log_info("Adjusting gene expression for differential coexpression ...")
-    for (cs in names(params)) {
-        log_info("- case: {cs}")
-        emat = foreach(i = seq_len(nsamples), .packages = c('nleqslv'), .combine = cbind) %dopar% {
-        # tmp <- lapply(seq_len(nsamples), function(i) {
-            # print(i)
-            parms <- get_params_by_sample(params[[cs]], groupmat[cs, i])
-            soln = suppressWarnings(nleqslv(
-                emat[, i],
-                ode,
-                slopes = parms$slopes, intercepts = parms$intercepts, lnnoise = lnnoise[i, ]
-            ))
-            # return(c(soln$x, soln$termcd))
-            return(soln$x)
-        }
-        # print(length(tmp))
-        # emat = do.call(cbind, tmp)
-        # print(dim(emat))
-        # # emat = cbind(emat)
-        # print(emat)
-    }
+    weights <- exprs / exprs  # initial weights
+    # x <- cost_fn(weights, exprs, params, groupmat, costfn = costfn, ncores = ncores)
+    # print(x)
+    # stop()
+    opt <- optimg(
+        weights, fn = cost_fn,
+        x = exprs, corrs = params, groupmat = groupmat,
+        costfn = costfn, ncores = ncores,
+        method = "ADAM", maxit= maxiter, verbose = verbose
+    )
+    emat[, optgenes] <- opt$par * exprs
 
-    # termcd = res[nrow(res),]
-    # emat = res[-(nrow(res)), , drop = F]
-    colnames(emat) = colnames(groupmat)
-    rownames(emat) = genes
-
-    # if (!all(termcd == 1)) {
-    #     nc = termcd != 1
-    #     msg = 'Simulations for the following samples did not converge:'
-    #     sampleids = paste(colnames(emat)[nc], ' (', termcd[nc], ')', sep = '', collapse = ', ')
-    #     msg = paste(c(msg, sampleids), collapse = '\n\t')
-    #     msg = paste(msg, 'format: sampleid (termination condition)', sep = '\n\n\t')
-    #     warning(msg)
-
-    #     emat = emat[, !nc]
-    # }
-
-    expnoise = rnorm(nrow(emat) * ncol(emat), 0, expnoise)
-    expnoise = matrix(expnoise, nrow = nrow(emat), byrow = T)
+    noise = rnorm(nrow(emat) * ncol(emat), 0, noise)
+    noise = matrix(noise, nrow = nrow(emat), byrow = T)
     list(
-        emat = emat + expnoise,
+        emat = emat + noise,
         regulator_targets = genepairs_to_gmt(gene_pairs),
-        case_regulators = params_to_gmt(params)
+        case_targets = params_to_gmt(params),
+        params = params
     )
 }
 
 log_info("Reading genotype matrix ...")
 groupmat <- read.table(genofile, header = TRUE, row.names = 1, sep = "\t", check.names = FALSE)
 if (min(groupmat) == 0) { groupmat <- groupmat + 1 }
+log_info("Running simulation ...")
 x <- sim_dataset(
     groupmat,
     ngenes = ngenes,
@@ -342,8 +500,7 @@ x <- sim_dataset(
     ntarget_range = ntarget_range,
     gene_prefix = gene_prefix,
     gene_index_start = gene_index_start,
-    bionoise = bionoise,
-    expnoise = expnoise
+    noise = noise
 )
 
 emat <- x$emat
@@ -351,5 +508,55 @@ if (transpose_exprs) { emat <- t(emat) }
 
 log_info("Saving results ...")
 write.table(emat, exfile, sep = "\t", quote = FALSE, col.names = TRUE, row.names = TRUE)
-write.table(x$case_regulators, snpgenefile, sep = "\t", quote = FALSE, col.names = FALSE, row.names = FALSE)
+write.table(x$case_targets, snpgenefile, sep = "\t", quote = FALSE, col.names = FALSE, row.names = FALSE)
 write.table(x$regulator_targets, tftargetfile, sep = "\t", quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+# save the truth
+# The truth is in params
+# $SNP_19_D
+# $SNP_19_D$`1`
+#             Gene3     Gene5     Gene15
+# Gene42         NA 0.5224003         NA
+# Gene44  0.9495537        NA         NA
+# Gene43 -0.3960198        NA -0.2115226
+
+# $SNP_19_D$`2`
+#            Gene3      Gene5     Gene15
+# Gene42        NA -0.7555059         NA
+# Gene44 0.6974368         NA         NA
+# Gene43 0.3128844         NA -0.1770625
+
+# $SNP_19_D$`3`
+#             Gene3      Gene5    Gene15
+# Gene42         NA -0.5325191        NA
+# Gene44 -0.8119182         NA        NA
+# Gene43  0.1202350         NA 0.4867512
+
+# The above params should be converted to
+# SNP TF Target Corr1 Corr2 Corr3
+# SNP_19_D Gene42 Gene5 0.5224003 -0.7555059 -0.5325191
+# SNP_19_D Gene44 Gene3 0.9495537 0.6974368 -0.8119182
+# SNP_19_D Gene43 Gene3 -0.3960198 0.3128844 0.1202350
+# SNP_19_D Gene43 Gene15 -0.2115226 -0.1770625 0.4867512
+truth <- c()
+for (snp in names(x$params)) {
+    idx <- which(!is.na(x$params[[snp]][[1]]), arr.ind = TRUE)
+    for (i in seq_len(nrow(idx))) {
+        truth <- rbind(
+            truth,
+            c(
+                SNP = snp,
+                TF = rownames(x$params[[snp]][[1]])[idx[i, 1]],
+                Target = colnames(x$params[[snp]][[1]])[idx[i, 2]],
+                ExCorr1 = x$params[[snp]][[1]][idx[i, 1], idx[i, 2]],
+                ExCorr2 = x$params[[snp]][[2]][idx[i, 1], idx[i, 2]],
+                ExCorr3 = x$params[[snp]][[3]][idx[i, 1], idx[i, 2]]
+            )
+        )
+    }
+}
+truth <- as.data.frame(truth)
+truth$ExCorr1 <- as.numeric(truth$ExCorr1)
+truth$ExCorr2 <- as.numeric(truth$ExCorr2)
+truth$ExCorr3 <- as.numeric(truth$ExCorr3)
+write.table(truth, truthfile, sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)

@@ -7,6 +7,8 @@ commands = {
     "simulate": "Simulate data for testing the ceQTL pipeline",
     "genoqc": "Quality control for genotype data",
     "exprqc": "Quality control for expression data",
+    "eqtl": "Run eQTL analysis",
+    "roc": "Run ROC analysis",
 }
 
 parser = argx.ArgumentParser(description="ceQTL pipeline and tools.")
@@ -29,4 +31,9 @@ def main():
 
     sys.argv = [f"{sys.argv[0]} {args.COMMAND}"] + args.arguments
     module = f"{args.COMMAND}.main"
-    __import__(module, fromlist=["main"]).main()
+    try:
+        imported = __import__(module, fromlist=["main"])
+    except ModuleNotFoundError:
+        imported = __import__(args.COMMAND)
+
+    imported.main()

@@ -138,7 +138,10 @@ process_one_cluster <- function(cluster) {
     log_info("- Processing cluster {cluster}/{length(clustered$clusters)} ...")
     chunk_snps <- names(clustered$km$cluster[clustered$km$cluster == cluster])
     chunk_geno <- geno[, chunk_snps , drop = FALSE]
-    chunk_dir <- file.path(outdir, paste0("chunk-", cluster))
+    chunk_dir <- file.path(
+        outdir,
+        paste0(tools::file_path_sans_ext(basename(genofile)), ".chunk-", cluster)
+    )
     dir.create(chunk_dir, recursive = TRUE, showWarnings = FALSE)
 
     # Save genotype data

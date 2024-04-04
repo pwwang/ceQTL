@@ -183,3 +183,5 @@ pyrightconfig.json
 /x.*
 /ex.ipynb
 /SimulatorGRN/
+/simulations/
+/.local/

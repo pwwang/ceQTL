@@ -56,7 +56,7 @@ if "ChowTest" in config or is_loading:
     class ChowTest(_ChowTest):
         requires = DataPreparation
         input_data = lambda ch: (
-            expand_dir(ch, pattern="chunk-*")
+            expand_dir(ch, pattern="*.chunk-*")
             >> mutate(
                 infile=paste0(f.outdir, "/expression.txt"),
                 groupfile=paste0(f.outdir, "/genotype.txt"),
@@ -112,7 +112,7 @@ if "InteractionLm" in config or is_loading:
         requires = DataPreparation
         input = "infile:file, groupfile:file, fmlfile:file"
         input_data = lambda ch: (
-            expand_dir(ch, pattern="chunk-*")
+            expand_dir(ch, pattern="*.chunk-*")
             >> mutate(
                 infile=paste0(f.outdir, "/expression.txt"),
                 groupfile=paste0(f.outdir, "/genotype.txt"),
@@ -144,7 +144,7 @@ if "LiquidAssoc" in config or is_loading:
     class LiquidAssoc(_LiquidAssoc):
         requires = DataPreparation
         input_data = lambda ch: (
-            expand_dir(ch, pattern="chunk-*")
+            expand_dir(ch, pattern="*.chunk-*")
             >> mutate(
                 infile=paste0(f.outdir, "/expression-nocov.txt"),
                 covfile=args.cov,
