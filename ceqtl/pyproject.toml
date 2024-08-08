@@ -10,10 +10,6 @@ license = "MIT"
 python = "^3.9"
 pipen = "^0.14"
 biopipen = { path = "../biopipen", develop = true }
-pipen-filters = "^0.12"
-pipen-verbose = "^0.11"
-pipen-args = "^0.14"
-pipen-report = "^0.18"
 
 [tool.poetry.dev-dependencies]
 

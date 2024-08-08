@@ -13,9 +13,11 @@ from biopipen.ns.stats import (
     ChowTest as _ChowTest,
     LiquidAssoc as _LiquidAssoc,
     MetaPvalue as _MetaPvalue,
+    MetaPvalue1 as _MetaPvalue1,
 )
 
-from shared.procs import DataPreparation as _DataPreparation
+from shared.procs import DataPreparation as _DataPreparation, MergeChunks
+
 from .args_def import add_args
 
 # Add extra arguments to the parser
@@ -25,30 +27,8 @@ is_loading = is_loading_pipeline() or isinstance(args, FallbackNamespace)
 
 
 class DataPreparation(_DataPreparation):
-    input_data = [(args.geno, args.expr, args.cov, args.snpgene, args.tftarget)]
+    input_data = [(args.geno, args.expr, args.cov, args.genesnp, args.tftarget)]
     envs = {"nchunks": args.nchunks, "ncores": args.ncores}
-
-
-class MergeChunks(Proc):
-    """Merge the chunks of the results.
-
-    Input:
-        infiles: The output files of chunks from each model.
-
-    Output:
-        outfile: The merged output file.
-    """
-    input = "infiles:files"
-    # outfile = ...  # to be set in subclasses
-    lang = bp_config.lang.bash
-    script = """
-        infile0={{in.infiles | first | quote}}
-        outfile={{out.outfile | quote}}
-        head -n 1 $infile0 > $outfile
-        {% for infile in in.infiles %}
-        tail -n +2 {{infile | quote}} >> $outfile
-        {% endfor %}
-    """
 
 
 ModelProcs = []
@@ -65,6 +45,7 @@ if "ChowTest" in config or is_loading:
             >> select(~f.outdir)
         )
         envs = {"padj": "none"}
+        plugin_opts = {"poplog_max": 999}
 
     class MergeChowTestChunks(MergeChunks):
         requires = ChowTest
@@ -79,7 +60,7 @@ if "ChowTest" in config or is_loading:
             )
         ]
 
-    ModelProcs.append(ChowTest)
+    ModelProcs.append(MergeChowTestChunks)
 
 if "InteractionLm" in config or is_loading:
     class InteractionLm(Proc):
@@ -123,6 +104,7 @@ if "InteractionLm" in config or is_loading:
         output = "outfile:file:{{in.infile | stem}}.interactionlm.txt"
         lang = bp_config.lang.rscript
         envs = {"padj": "none"}
+        plugin_opts = {"poplog_max": 999}
         script = "file://scripts/InteractionLm.R"
 
     class MergeInteractionLmChunks(MergeChunks):
@@ -138,7 +120,7 @@ if "InteractionLm" in config or is_loading:
             )
         ]
 
-    ModelProcs.append(InteractionLm)
+    ModelProcs.append(MergeInteractionLmChunks)
 
 if "LiquidAssoc" in config or is_loading:
     class LiquidAssoc(_LiquidAssoc):
@@ -154,6 +136,7 @@ if "LiquidAssoc" in config or is_loading:
             >> select(~f.outdir)
         )
         envs = {"padj": "none", "xyz_names": ["TF", "Target", "SNP"]}
+        plugin_opts = {"poplog_max": 999}
 
     class MergeLiquidAssocChunks(MergeChunks):
         requires = LiquidAssoc
@@ -168,17 +151,39 @@ if "LiquidAssoc" in config or is_loading:
             )
         ]
 
-    ModelProcs.append(LiquidAssoc)
+    ModelProcs.append(MergeLiquidAssocChunks)
 
 if config and not ModelProcs:
     raise ValueError("No model specified in the config file")
 
 
-class MetaPvalue(_MetaPvalue):
+class CombineAndAdjustPValues(_MetaPvalue):
     requires = ModelProcs
+    output = "outfile:file:ceqtl-trios.txt"
     input_data = lambda *chs: [[ch.iloc[0, 0] for ch in chs]]
     envs = {
         "id_cols": ["SNP", "TF", "Target"],
         "pval_cols": "Pval",
-        "padj": "BH",
+        "padj": "fdr",
+    }
+    export = True
+
+
+class CombinePValuesForVariants(_MetaPvalue1):
+    requires = CombineAndAdjustPValues
+    output = "outfile:file:ceqtl-variants.txt"
+    envs = {
+        "id_cols": ["SNP"],
+        "pval_col": "Pval",
+        "padj": "fdr",
+    }
+
+
+class CombinePValuesForVariantGenePairs(_MetaPvalue1):
+    requires = CombineAndAdjustPValues
+    output = "outfile:file:ceqtl-vargenes.txt"
+    envs = {
+        "id_cols": ["SNP", "Target"],
+        "pval_col": "Pval",
+        "padj": "fdr",
     }

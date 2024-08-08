@@ -184,4 +184,10 @@ pyrightconfig.json
 /ex.ipynb
 /SimulatorGRN/
 /simulations/
+/real/gtex-lung/*-output/
+/real/gtex-lung/raw/
+/real/gtex-lung/MotifAffinityTestIndividually/
+/real/gtex-lung/Scatter/
 /.local/
+.vscode/
+*.ipynb

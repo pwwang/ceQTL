@@ -1,0 +1,2 @@
+tfgmt = "raw/TFLink_Homo_sapiens_interactions_SS_GMT_proteinName_v1.0.gmt"
+expr = "raw/Lung.v8.normalized_expression.bed.gz"

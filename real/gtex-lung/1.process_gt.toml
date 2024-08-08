@@ -1,0 +1,17 @@
+vcf = "raw/GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze.SHAPEIT2_phased.vcf.gz"
+dbsnp = "raw/00-All.vcf.gz"
+
+[GenePromoters.envs]
+refgene = "~/reference/hg38/hg38.refGene.transcript.gtf"
+chrsize = "~/reference/hg38/hg38.chrom.sizes"
+
+[GeneVarGMT.envs]
+chrsize = "~/reference/hg38/hg38.chrom.sizes"
+
+[PlinkIBD.envs]
+highld = "~/reference/hg38/high-LD-regions-hg38.bed"
+
+[PlinkFreq.envs.cutoff]
+HOM_REF_CT = 20
+HET_REF_ALT1_CT = 20
+HOM_ALT1_CT = 20

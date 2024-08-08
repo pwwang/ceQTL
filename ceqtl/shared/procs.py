@@ -19,7 +19,7 @@ class DataPreparation(Proc):
         geno: The genotype matrix file, with SNP as columns and samples as rows.
         expr: The expression matrix file
         cov: The covariate variables matrix.
-        snpgene: The SNP-gene file in GMT format
+        genesnp: The SNP-gene file in GMT format
         tftarget: The TF-target file in GMT format
 
     Output:
@@ -34,7 +34,7 @@ class DataPreparation(Proc):
         transpose_cov (flag): Whether to transpose the covariate matrix if
             the covariates are in rows.
     """
-    input = "geno:file, expr:file, cov:file, snpgene:file, tftarget:file"
+    input = "geno:file, expr:file, cov:file, genesnp:file, tftarget:file"
     output = "outdir:dir:{{in.geno | stem}}.prepared"
     lang = config.lang.rscript
     envs = {
@@ -44,3 +44,25 @@ class DataPreparation(Proc):
         "transpose_cov": False,
     }
     script = "file://scripts/DataPreparation.R"
+
+
+class MergeChunks(Proc):
+    """Merge the chunks of the results.
+
+    Input:
+        infiles: The output files of chunks from each model.
+
+    Output:
+        outfile: The merged output file.
+    """
+    input = "infiles:files"
+    # outfile = ...  # to be set in subclasses
+    lang = config.lang.bash
+    script = """
+        infile0={{in.infiles | first | quote}}
+        outfile={{out.outfile | quote}}
+        head -n 1 $infile0 > $outfile
+        {% for infile in in.infiles %}
+        tail -n +2 {{infile | quote}} >> $outfile
+        {% endfor %}
+    """

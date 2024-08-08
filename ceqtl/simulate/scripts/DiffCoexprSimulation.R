@@ -1,16 +1,20 @@
 source("{{biopipen_dir}}/utils/misc.R")
 
-library(foreach)
-library(doParallel)
-library(nleqslv)
+# library(foreach)
+# library(doParallel)
+# library(nleqslv)
+library(ggplot2)
 
 genofile <- {{in.genofile | r}}
+seed <- {{in.seed | r}}
 exfile <- {{out.exfile | r}}
 snpgenefile <- {{out.snpgenefile | r}}
 tftargetfile <- {{out.tftargetfile | r}}
+truthallfile <- {{out.truthallfile | r}}
 truthfile <- {{out.truthfile | r}}
+truthplotdir <- {{out.truthfile | stem | append: ".plots" | r}}
+dir.create(truthplotdir, showWarnings = FALSE)
 
-seed <- {{envs.seed | r}}
 ncores <- {{envs.ncores | r}}
 ngenes <- {{envs.ngenes | r}}
 npair_range <- {{envs.npair_range | r}}
@@ -22,7 +26,7 @@ noise <- {{envs.noise | r}}
 transpose_exprs <- {{envs.transpose_exprs | r}}
 
 set.seed(seed)
-registerDoParallel(cores=24)
+# registerDoParallel(cores=24)
 
 #### Generate genotype matrix
 suppressPackageStartupMessages({
@@ -500,7 +504,8 @@ x <- sim_dataset(
     ntarget_range = ntarget_range,
     gene_prefix = gene_prefix,
     gene_index_start = gene_index_start,
-    noise = noise
+    noise = noise,
+    verbose = TRUE
 )
 
 emat <- x$emat
@@ -538,25 +543,103 @@ write.table(x$regulator_targets, tftargetfile, sep = "\t", quote = FALSE, col.na
 # SNP_19_D Gene44 Gene3 0.9495537 0.6974368 -0.8119182
 # SNP_19_D Gene43 Gene3 -0.3960198 0.3128844 0.1202350
 # SNP_19_D Gene43 Gene15 -0.2115226 -0.1770625 0.4867512
+truth_data <- function(snp, TF, Target) {
+    ugroups <- as.character(1:3)
+    do_one_group <- function(g) {
+        g <- as.character(g)
+        ex_corr_df <- x$params[[snp]][[g]]
+        if (is.null(ex_corr_df)) {
+            ex_corr <- NA
+            ob_corr <- NA
+            ob_p <- NA
+            plotdf <- data.frame(
+                TF = NA,
+                Target = NA,
+                Group = g,
+                cor = ob_corr
+            )
+        } else {
+            ex_corr <- ex_corr_df[TF, Target]
+            samples <- names(groupmat)[as.character(groupmat[snp, ]) == g]
+            cor <- tryCatch({
+                cor.test(x$emat[samples, TF], x$emat[samples, Target])
+            }, error = function(e) {
+                list(estimate = NA, p.value = NA)
+            })
+            # cor <- cor.test(x$emat[samples, TF], x$emat[samples, Target])
+            ob_corr <- cor$estimate
+            ob_p <- cor$p.value
+            plotdf <- data.frame(
+                TF = x$emat[samples, TF],
+                Target = x$emat[samples, Target],
+                Group = g,
+                cor = ob_corr
+            )
+        }
+        list(
+            ex_corr = ex_corr,
+            ob_corr = ob_corr,
+            ob_p = ob_p,
+            plotdf = plotdf)
+    }
+    g1 <- do_one_group(1)
+    g2 <- do_one_group(2)
+    g3 <- do_one_group(3)
+    plotdf <- rbind(g1$plotdf, g2$plotdf, g3$plotdf)
+    max_val <- 1
+    # scatter plots faceted by group
+    # also add r^2 in the plot
+    plotfile <- file.path(truthplotdir, paste0(snp, "-", TF, "-", Target, ".png"))
+    p <- ggplot(plotdf, aes(x = TF, y = Target)) +
+        geom_point() +
+        facet_wrap(~ Group) +
+        geom_smooth(method = "lm", se = FALSE, formula = y ~ x) +
+        geom_text(aes(label = paste0("cor = ", round(cor, 2))), x = 0, y = 0, hjust = 0, vjust = 1) +
+        theme_bw() +
+        xlim(0, max_val) +
+        ylim(0, max_val) +
+        labs(title = paste0(snp, "/", TF, "/", Target))
+    png(plotfile, res = 70, width = 1400, height = 500)
+    print(p)
+    dev.off()
+
+    data.frame(
+        SNP = snp,
+        TF = TF,
+        Target = Target,
+        ExCorr1 = g1$ex_corr,
+        ExCorr2 = g2$ex_corr,
+        ExCorr3 = g3$ex_corr,
+        ObCorr1 = g1$ob_corr,
+        ObCorr2 = g2$ob_corr,
+        ObCorr3 = g3$ob_corr,
+        ObPval1 = g1$ob_p,
+        ObPval2 = g2$ob_p,
+        ObPval3 = g3$ob_p,
+        AnySig = any(na.omit(c(g1$ob_p, g2$ob_p, g3$ob_p)) < 0.05),
+        MaxObCorrDiff = max(abs(
+            c(g1$ob_corr, g1$ob_corr, g2$ob_corr) -
+            c(g2$ob_corr, g3$ob_corr, g3$ob_corr)
+        ))
+    )
+}
+
 truth <- c()
 for (snp in names(x$params)) {
     idx <- which(!is.na(x$params[[snp]][[1]]), arr.ind = TRUE)
     for (i in seq_len(nrow(idx))) {
-        truth <- rbind(
-            truth,
-            c(
-                SNP = snp,
-                TF = rownames(x$params[[snp]][[1]])[idx[i, 1]],
-                Target = colnames(x$params[[snp]][[1]])[idx[i, 2]],
-                ExCorr1 = x$params[[snp]][[1]][idx[i, 1], idx[i, 2]],
-                ExCorr2 = x$params[[snp]][[2]][idx[i, 1], idx[i, 2]],
-                ExCorr3 = x$params[[snp]][[3]][idx[i, 1], idx[i, 2]]
-            )
-        )
+        TF_idx <- idx[i, 1]
+        Target_idx <- idx[i, 2]
+        TF = rownames(x$params[[snp]][[1]])[TF_idx]
+        Target = colnames(x$params[[snp]][[1]])[Target_idx]
+        tmp <- truth_data(snp, TF, Target)
+        truth <- rbind(truth, truth_data(snp, TF, Target))
     }
 }
 truth <- as.data.frame(truth)
-truth$ExCorr1 <- as.numeric(truth$ExCorr1)
-truth$ExCorr2 <- as.numeric(truth$ExCorr2)
-truth$ExCorr3 <- as.numeric(truth$ExCorr3)
-write.table(truth, truthfile, sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
+write.table(truth, truthallfile, sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+write.table(
+    truth[truth$AnySig & truth$MaxObCorrDiff >= 0.5, , drop = FALSE],
+    truthfile, sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE
+)

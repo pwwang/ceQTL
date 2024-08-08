@@ -29,8 +29,8 @@ def add_args(parser: Parser) -> Parser:
     parser.add_argument(
         "--cov",
         help=(
-            "The file with covariate variables. It should have the same number and "
-            "order of samples as the expression matrix."
+            "The file with covariate variables with covariates as columns and "
+            "samples as rows. "
         ),
         default=None,
         type="path",
@@ -42,8 +42,8 @@ def add_args(parser: Parser) -> Parser:
         type="path",
     )
     parser.add_argument(
-        "--snpgene",
-        help="The SNP-gene file in GMT format",
+        "--genesnp",
+        help="The Gene-SNP file in GMT format",
         required=True,
         type="path",
     )
