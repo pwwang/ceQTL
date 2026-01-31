@@ -16,7 +16,11 @@ from biopipen.ns.stats import (
     MetaPvalue1 as _MetaPvalue1,
 )
 
-from shared.procs import DataPreparation as _DataPreparation, MergeChunks
+from shared.procs import (
+    DataPreparation as _DataPreparation,
+    DataPreparationTrio as _DataPreparationTrio,
+    MergeChunks,
+)
 
 from .args_def import add_args
 
@@ -26,9 +30,15 @@ args = parser.parse_extra_args()
 is_loading = is_loading_pipeline() or isinstance(args, FallbackNamespace)
 
 
-class DataPreparation(_DataPreparation):
-    input_data = [(args.geno, args.expr, args.cov, args.genesnp, args.tftarget)]
-    envs = {"nchunks": args.nchunks, "ncores": args.ncores}
+if args.triofile:
+    class DataPreparation(_DataPreparationTrio):
+        input_data = [
+            (args.geno, args.expr, args.cov, args.triofile)
+        ]
+else:
+    class DataPreparation(_DataPreparation):
+        input_data = [(args.geno, args.expr, args.cov, args.genesnp, args.tftarget)]
+        envs = {"nchunks": args.nchunks, "ncores": args.ncores}
 
 
 ModelProcs = []

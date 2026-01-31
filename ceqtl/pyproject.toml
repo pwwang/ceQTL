@@ -8,10 +8,9 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-pipen = "^0.14"
 biopipen = { path = "../biopipen", develop = true }
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 
 [tool.poetry.scripts]
 ceqtl = "ceqtl:main"

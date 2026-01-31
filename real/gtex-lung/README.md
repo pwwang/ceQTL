@@ -54,9 +54,3 @@ The (meta) pvalues or adjusted (meta) pvalues for ceQTL variants are combined us
   - For trios + Padj: QQPlot_trios_Padj-output/QQPlot/ceqtl-trios.qq.png
   - For variants + Pval: QQPlot_vars_Pval-output/QQPlot/ceqtl-variants.qq.png
   - For variants + Padj: QQPlot_vars_Padj-output/QQPlot/ceqtl-variants.qq.png
-
-## Notes
-
-To extract the significant ceQTLs, the following thresholds are used:
-
-......

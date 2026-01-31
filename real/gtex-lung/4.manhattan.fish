@@ -6,7 +6,7 @@ set ceqtl_trios_cov ./ceQTL-cov-output/CombineAndAdjustPValues/ceqtl-trios.txt
 set ceqtl_vars_cov ./ceQTL-cov-output/CombinePValuesForVariants/ceqtl-variants.txt
 set bedfile ./ProcessGT-output/VariantCoords/variant_coords.bed
 set chroms 'chr1-22'
-set signif '1e-10, 1e-8'
+set signif '1e-5,5e-2'
 
 # without cov
 poetry run -C ../../ceqtl -- \
@@ -15,8 +15,7 @@ poetry run -C ../../ceqtl -- \
 	--chroms $chroms \
 	--signif $signif \
 	--trio-pval-col Pval \
-	--var-pval-col MetaPval \
-	--signif 1e-10,1e-6
+	--var-pval-col MetaPval
 
 poetry run -C ../../ceqtl -- \
 	ceqtl manh --name ManhattanPlots_Padj \
@@ -24,8 +23,7 @@ poetry run -C ../../ceqtl -- \
 	--chroms $chroms \
 	--signif $signif \
 	--trio-pval-col Padj \
-	--var-pval-col MetaPadj \
-	--signif 1e-10,1e-6
+	--var-pval-col MetaPadj
 
 # with cov
 poetry run -C ../../ceqtl -- \
@@ -34,8 +32,7 @@ poetry run -C ../../ceqtl -- \
 	--chroms $chroms \
 	--signif $signif \
 	--trio-pval-col Pval \
-	--var-pval-col MetaPval \
-	--signif 1e-10,1e-6
+	--var-pval-col MetaPval
 
 poetry run -C ../../ceqtl -- \
 	ceqtl manh --name ManhattanPlots_Padj-cov \
@@ -43,5 +40,4 @@ poetry run -C ../../ceqtl -- \
 	--chroms $chroms \
 	--signif $signif \
 	--trio-pval-col Padj \
-	--var-pval-col MetaPadj \
-	--signif 1e-10,1e-6
+	--var-pval-col MetaPadj

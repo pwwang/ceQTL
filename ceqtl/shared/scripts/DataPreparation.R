@@ -81,7 +81,7 @@ if (is.null(covfile)) {
     geno <- geno[samples, , drop = FALSE]
     expr <- expr[samples, , drop = FALSE]
     covdata <- covdata[samples, , drop = FALSE]
-    cov <- paste0(bQuote(colnames(covdata)), collapse = " + ")
+    cov <- paste0(sapply(colnames(covdata), bQuote), collapse = " + ")
 }
 
 log_info("Reading SNP-gene pairs ...")

@@ -188,6 +188,11 @@ pyrightconfig.json
 /real/gtex-lung/raw/
 /real/gtex-lung/MotifAffinityTestIndividually/
 /real/gtex-lung/Scatter/
+/real/gtex-lung/TFLINK_TFBS/
 /.local/
 .vscode/
 *.ipynb
+symlinks.txt
+nohup.out
+*.bak
+zhifu.trio.*.txt

@@ -48,6 +48,11 @@ def add_args(parser: Parser) -> Parser:
         type="path",
     )
     parser.add_argument(
+        "--triofile",
+        help="The TF-SNP-Gene trio file limits TF-snp-gene relationship.",
+        type="path",
+    )
+    parser.add_argument(
         "--nchunks",
         help="Break the SNPs into chunks to run in parallel",
         required=True,

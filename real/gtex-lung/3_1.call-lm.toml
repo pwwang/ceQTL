@@ -1,1 +1,4 @@
+[plugin_opts]
+log2file_xqute_level = "debug"
+
 [InteractionLm]

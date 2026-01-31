@@ -36,7 +36,8 @@ def main():
     module = f"{args.COMMAND}.main"
     try:
         imported = __import__(module, fromlist=["main"])
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as e:
+        # raise e
         imported = __import__(args.COMMAND)
 
     imported.main()
