@@ -212,5 +212,10 @@ def get_pipeline(args):
 
 def main():
     args = parser.parse_extra_args()
-    pipen = get_pipeline(args)
-    pipen.run()
+    try:
+        pipen = get_pipeline(args)
+    except AttributeError:
+        # print help
+        parser.parse_args(_internal=True)
+    else:
+        pipen.run()
