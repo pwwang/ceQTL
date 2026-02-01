@@ -5,18 +5,18 @@ from biopipen.core.proc import Proc
 from biopipen.ns.plot import Manhattan as Manhattan_
 
 
-parser.add_argument(
+parser.add_extra_argument(
     "--ceqtl-trios",
     dest="ceqtl_trios",
     help="The ceQTL trio file",
     required=True,
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--ceqtl-vars",
     dest="ceqtl_vars",
     help="The ceQTL variant file",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--bedfile",
     help=(
         "The BED file giving the coordinates of the SNPs. "
@@ -24,23 +24,23 @@ parser.add_argument(
     ),
     required=True,
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--chroms",
     help="Order of chromosomes in the plot",
     default="chr1-22",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--signif",
     help="Significance levels",
     default="5e-8,1e-5",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--trio-pval-col",
     dest="trio_pval_col",
     help="The column name of the p-values in the ceQTL trio file",
     default="Pval",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--var-pval-col",
     dest="var_pval_col",
     help="The column name of the p-values in the ceQTL variant file",
@@ -115,5 +115,10 @@ def get_pipeline(args):
 
 def main():
     args = parser.parse_extra_args()
-    pipen = get_pipeline(args)
-    pipen.run()
+    try:
+        pipen = get_pipeline(args)
+    except AttributeError as e:
+        print("Error in arguments: {}".format(e))
+        parser.print_help()
+    else:
+        pipen.run()

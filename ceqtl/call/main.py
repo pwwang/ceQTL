@@ -10,4 +10,4 @@ class Pipeline(Pipen):
 
 
 def main():
-    Pipeline().run()
+    Pipeline(plugins=["-report", "-board"]).run()

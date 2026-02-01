@@ -6,7 +6,7 @@ from datar.dplyr import mutate, select
 from pipen.channel import expand_dir
 from pipen.utils import is_loading_pipeline
 from pipen_args import parser, config
-from pipen_args.parser_ import FallbackNamespace
+# from pipen_args.parser_ import FallbackNamespace
 from biopipen.core.config import config as bp_config
 from biopipen.core.proc import Proc
 from biopipen.ns.stats import (
@@ -22,12 +22,12 @@ from shared.procs import (
     MergeChunks,
 )
 
-from .args_def import add_args
+from .args_def import add_extra_args
 
 # Add extra arguments to the parser
-parser = add_args(parser)
+parser = add_extra_args(parser)
 args = parser.parse_extra_args()
-is_loading = is_loading_pipeline() or isinstance(args, FallbackNamespace)
+is_loading = is_loading_pipeline() or not hasattr(args, "expr")
 
 
 if args.triofile:
@@ -42,7 +42,7 @@ else:
 
 
 ModelProcs = []
-if "ChowTest" in config or is_loading:
+if "ChowTest" in config or is_loading or True:
     class ChowTest(_ChowTest):
         requires = DataPreparation
         input_data = lambda ch: (

@@ -5,27 +5,27 @@ from biopipen.core.proc import Proc
 from biopipen.ns.plot import Manhattan as Manhattan_, Scatter as Scatter_
 
 
-parser.add_argument(
+parser.add_extra_argument(
     "--snp",
     help="The SNP to plot",
     required=True,
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--tf",
     help="The TF to plot",
     required=True,
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--target",
     help="The target gene to plot",
     required=True,
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--split",
     help="Split the plot by the SNP genotypes",
     action="store_true",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--expr",
     help=(
         "The expression matrix file, with genes as columns and samples as rows. "
@@ -33,7 +33,7 @@ parser.add_argument(
     required=True,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--geno",
     help=(
         "The genotype matrix file, with SNP as columns and samples as rows. "
@@ -43,7 +43,7 @@ parser.add_argument(
     required=True,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--cov",
     help=(
         "The file with covariate variables with covariates as columns and "
@@ -53,19 +53,19 @@ parser.add_argument(
     default=None,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--transpose-expr",
     dest="transpose_expr",
     help="Transpose the expression matrix",
     action="store_true",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--transpose-geno",
     dest="transpose_geno",
     help="Transpose the genotype matrix",
     action="store_true",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--transpose-cov",
     dest="transpose_cov",
     help="Transpose the covariate matrix",
@@ -214,8 +214,8 @@ def main():
     args = parser.parse_extra_args()
     try:
         pipen = get_pipeline(args)
-    except AttributeError:
-        # print help
-        parser.parse_args(_internal=True)
+    except AttributeError as e:
+        print("Error in arguments: {}".format(e))
+        parser.print_help()
     else:
         pipen.run()

@@ -9,7 +9,7 @@ from biopipen.ns.stats import Mediation as Mediation_, MetaPvalue1 as MetaPvalue
 from shared.procs import MergeChunks
 
 
-parser.add_argument(
+parser.add_extra_argument(
     "--expr",
     help=(
         "The expression matrix file, with genes as columns and samples as rows. "
@@ -17,7 +17,7 @@ parser.add_argument(
     required=True,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--geno",
     help=(
         "The genotype matrix file, with SNP as columns and samples as rows. "
@@ -27,7 +27,7 @@ parser.add_argument(
     required=True,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--cov",
     help=(
         "The file with covariate variables with covariates as columns and "
@@ -36,13 +36,13 @@ parser.add_argument(
     default=None,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--trios",
     help="The ceQTL trio file",
     required=True,
     type="path",
 )
-parser.add_argument(
+parser.add_extra_argument(
     "--nchunks",
     help="Break the trios into chunks to run in parallel",
     default=4,
@@ -170,5 +170,10 @@ def get_pipeline(args):
 
 def main():
     args = parser.parse_extra_args()
-    pipen = get_pipeline(args)
-    pipen.run()
+    try:
+        pipen = get_pipeline(args)
+    except AttributeError as e:
+        print("Error in arguments: {}".format(e))
+        parser.print_help()
+    else:
+        pipen.run()

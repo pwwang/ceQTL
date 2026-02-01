@@ -6,27 +6,27 @@ if TYPE_CHECKING:
     from pipen_args import Parser
 
 
-def add_args(parser: Parser) -> Parser:
+def add_extra_args(parser: Parser) -> Parser:
     """Add extra arguments to the parser"""
-    parser.add_argument(
+    parser.add_extra_argument(
         "--expr",
         help=(
             "The expression matrix file, with genes as columns and samples as rows. "
         ),
-        required=True,
+        # required=True,
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--geno",
         help=(
             "The genotype matrix file, with SNP as columns and samples as rows. "
             "It should have the same number and order of samples as "
             "the expression matrix."
         ),
-        required=True,
+        # required=True,
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--cov",
         help=(
             "The file with covariate variables with covariates as columns and "
@@ -35,30 +35,31 @@ def add_args(parser: Parser) -> Parser:
         default=None,
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--tftarget",
         help="The TF-target file in GMT format",
-        required=True,
+        # required=True,
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--genesnp",
         help="The Gene-SNP file in GMT format",
-        required=True,
+        # required=True,
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--triofile",
         help="The TF-SNP-Gene trio file limits TF-snp-gene relationship.",
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--nchunks",
         help="Break the SNPs into chunks to run in parallel",
-        required=True,
+        # required=True,
+        default=1,
         type="path",
     )
-    parser.add_argument(
+    parser.add_extra_argument(
         "--ncores",
         help="Number of cores to use for all processes",
         default=1,
