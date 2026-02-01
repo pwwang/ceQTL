@@ -196,4 +196,6 @@ symlinks.txt
 nohup.out
 *.bak
 zhifu.trio.*.txt
+zfs_trio.txt
 /real/ceQTL_ZS/
+run_zfs_affinity_test.fish
