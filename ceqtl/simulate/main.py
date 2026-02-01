@@ -1,4 +1,6 @@
 import random
+import sys
+
 from simpleconf import Config
 # from datar import f
 from datar.tibble import tibble
@@ -14,7 +16,7 @@ from biopipen.ns.snp import PlinkSimulation
 # from shared.procs import DataPreparation
 
 
-parser.add_argument(
+parser.add_extra_argument(
     "--config",
     help=(
         "The configuration file for simulations.\n"
@@ -39,9 +41,8 @@ parser.add_argument(
         "- noise: The noise level for gene expression\n"
         "Required keys: nsims, nsnps, nsamples, and ngenes"
     ),
-    required=True,
 )
-parser.add_argument(
+parser.add_extra_argument(
     "-c",
     "--nchunks",
     help="Number of chunks to split the data into",
@@ -49,9 +50,12 @@ parser.add_argument(
     type=int,
 )
 
-args = parser.parse_extra_args(
-    kwargs={"config": {"nsims": 10, "nsnps": 100, "nsamples": 100, "ngenes": 100}}
-)
+args = parser.parse_extra_args()
+if not hasattr(args, "config") or not args.config:
+    print("Error: The --config argument is required.")
+    parser.print_help()
+    sys.exit(1)
+
 conf = Config.load(args.config)
 if (
     "nsims" not in conf

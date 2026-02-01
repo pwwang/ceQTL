@@ -1,6 +1,4 @@
-source("{{biopipen_dir}}/utils/misc.R")
-
-library(glue)
+library(biopipen.utils)
 library(parallel)
 
 genofile <- {{in.geno | r}}
@@ -15,6 +13,8 @@ transpose_geno <- {{envs.transpose_geno | r}}
 transpose_expr <- {{envs.transpose_expr | r}}
 transpose_cov <- {{envs.transpose_cov | r}}
 set.seed(1234)
+
+log <- get_logger()
 
 readGMT <- function(gmtfile) {
     gmt <- list()
@@ -31,7 +31,7 @@ readGMT <- function(gmtfile) {
     return(gmt)
 }
 
-log_info("Reading genotype data ...")
+log$info("Reading genotype data ...")
 geno <- read.table(
     genofile,
     row.names = 1,
@@ -43,7 +43,7 @@ geno <- read.table(
 if (transpose_geno) { geno <- t(geno) }
 allsnps <- colnames(geno)
 
-log_info("Reading expression data ...")
+log$info("Reading expression data ...")
 expr <- read.table(
     exprfile,
     row.names = 1,
@@ -60,11 +60,11 @@ covdata <- NULL
 cov <- NULL
 
 if (is.null(covfile)) {
-    log_info("- Working on {length(samples)} common samples between genotype and expression data.")
+    log$info("- Working on {length(samples)} common samples between genotype and expression data.")
     geno <- geno[samples, , drop = FALSE]
     expr <- expr[samples, , drop = FALSE]
 } else {
-    log_info("Reading covariate data ...")
+    log$info("Reading covariate data ...")
     covdata <- read.table(
         covfile,
         row.names = 1,
@@ -76,33 +76,33 @@ if (is.null(covfile)) {
     if (transpose_cov) { covdata <- t(covdata) }
     ge_nsamples <- length(samples)
     samples <- intersect(samples, rownames(covdata))
-    log_info("- Working on {length(samples)} common samples between genotype, expression and covariate data.")
-    log_info("- Number of common samples between genotype and expression data: {ge_nsamples}")
+    log$info("- Working on {length(samples)} common samples between genotype, expression and covariate data.")
+    log$info("- Number of common samples between genotype and expression data: {ge_nsamples}")
     geno <- geno[samples, , drop = FALSE]
     expr <- expr[samples, , drop = FALSE]
     covdata <- covdata[samples, , drop = FALSE]
     cov <- paste0(sapply(colnames(covdata), bQuote), collapse = " + ")
 }
 
-log_info("Reading SNP-gene pairs ...")
+log$info("Reading SNP-gene pairs ...")
 genesnp_pairs <- readGMT(sgfile)
 
-log_info("Reading TF-target pairs ...")
+log$info("Reading TF-target pairs ...")
 tftarget_pairs <- readGMT(tftfile)
 
-log_info("QC TF-target pairs ...")
+log$info("QC TF-target pairs ...")
 nonexist_tfs <- c()
 notarget_tfs <- c()
 for (tf in names(tftarget_pairs)) {
     if (!tf %in% allgenes) {
-        # log_warn("- TF {tf} does not exist in the expression data and will be ignored.")
+        # log$warn("- TF {tf} does not exist in the expression data and will be ignored.")
         tftarget_pairs[[tf]] <- NULL
         nonexist_tfs <- c(nonexist_tfs, tf)
     } else {
         targets <- tftarget_pairs[[tf]]
         targets <- intersect(targets, allgenes)
         if (length(targets) == 0) {
-            # log_warn("- TF {tf} has no targets in the expression data and will be ignored.")
+            # log$warn("- TF {tf} has no targets in the expression data and will be ignored.")
             tftarget_pairs[[tf]] <- NULL
             notarget_tfs <- c(notarget_tfs, tf)
         }
@@ -117,10 +117,10 @@ if (length(nonexist_tfs) > 0) {
     } else {
         paste0(nonexist_tfs, collapse = ", ")
     }
-    log_warn("- TFs do not exist in the expression data and will be ignored: ")
-    log_warn("  {nonexist_tf_str} (n={length(nonexist_tfs)})")
+    log$warn("- TFs do not exist in the expression data and will be ignored: ")
+    log$warn("  {nonexist_tf_str} (n={length(nonexist_tfs)})")
     if (length(nonexist_tfs) > 3) {
-        log_warn("  Full list {nonexist_tf_file}")
+        log$warn("  Full list {nonexist_tf_file}")
     }
 }
 if (length(notarget_tfs) > 0) {
@@ -131,10 +131,10 @@ if (length(notarget_tfs) > 0) {
     } else {
         paste0(notarget_tfs, collapse = ", ")
     }
-    log_warn("- TFs have no targets in the expression data and will be ignored: ")
-    log_warn("  {notarget_tf_str} (n={length(notarget_tfs)})")
+    log$warn("- TFs have no targets in the expression data and will be ignored: ")
+    log$warn("  {notarget_tf_str} (n={length(notarget_tfs)})")
     if (length(notarget_tfs) > 3) {
-        log_warn("  Full list: {notarget_tf_file}")
+        log$warn("  Full list: {notarget_tf_file}")
     }
 }
 # Reverse the TF-target pair mapping
@@ -152,19 +152,19 @@ for (tf in names(tftarget_pairs)) {
 allgenes <- unique(c(names(tftarget_pairs), names(targettf_pairs)))
 expr <- expr[, allgenes, drop = FALSE]
 
-log_info("QC Gene-SNP pairs ...")
+log$info("QC Gene-SNP pairs ...")
 nonexist_snpgenes <- c()
 nosnp_genes <- c()
 for (gene in names(genesnp_pairs)) {
     if (!gene %in% allgenes) {
-        # log_warn("- Gene {gene} does not exist in the expression data and will be ignored.")
+        # log$warn("- Gene {gene} does not exist in the expression data and will be ignored.")
         genesnp_pairs[[gene]] <- NULL
         nonexist_snpgenes <- c(nonexist_snpgenes, gene)
     } else {
         snps <- genesnp_pairs[[gene]]
         snps <- intersect(snps, allsnps)
         if (length(snps) == 0) {
-            # log_warn("- Gene {gene} has no SNPs in the genotype data and will be ignored.")
+            # log$warn("- Gene {gene} has no SNPs in the genotype data and will be ignored.")
             genesnp_pairs[[gene]] <- NULL
             nosnp_genes <- c(nosnp_genes, gene)
         }
@@ -179,10 +179,10 @@ if (length(nonexist_snpgenes) > 0) {
     } else {
         paste0(nonexist_snpgenes, collapse = ", ")
     }
-    log_warn("- Genes do not exist in the expression data and will be ignored: ")
-    log_warn("  {nonexist_snpgene_str} (n={length(nonexist_snpgenes)})")
+    log$warn("- Genes do not exist in the expression data and will be ignored: ")
+    log$warn("  {nonexist_snpgene_str} (n={length(nonexist_snpgenes)})")
     if (length(nonexist_snpgenes) > 3) {
-        log_warn("  Full list: {nonexist_snpgene_file}")
+        log$warn("  Full list: {nonexist_snpgene_file}")
     }
 }
 if (length(nosnp_genes) > 0) {
@@ -193,10 +193,10 @@ if (length(nosnp_genes) > 0) {
     } else {
         paste0(nosnp_genes, collapse = ", ")
     }
-    log_warn("- Genes have no SNPs in the genotype data and will be ignored: ")
-    log_warn("  {nosnp_gene_str} (n={length(nosnp_genes)})")
+    log$warn("- Genes have no SNPs in the genotype data and will be ignored: ")
+    log$warn("  {nosnp_gene_str} (n={length(nosnp_genes)})")
     if (length(nosnp_genes) > 3) {
-        log_warn("  Full list: {nosnp_gene_file}")
+        log$warn("  Full list: {nosnp_gene_file}")
     }
 }
 
@@ -212,14 +212,14 @@ for (gene in names(genesnp_pairs)) {
     }
 }
 
-log_info("Splitting genes into chunks ...")
+log$info("Splitting genes into chunks ...")
 clusters <- sample(1:nchunks, length(genesnp_pairs), replace = TRUE)
 km <- list(cluster = clusters)
 names(km$cluster) <- names(genesnp_pairs)
 clustered = list(km = km, clusters = sort(unique(clusters)))
 
 process_one_cluster <- function(cluster) {
-    log_info("- Processing cluster {cluster}/{length(clustered$clusters)} ...")
+    log$info("- Processing cluster {cluster}/{length(clustered$clusters)} ...")
     chunk_genges <- names(genesnp_pairs)[clustered$km$cluster == cluster]
     chunk_snps <- unique(unlist(lapply(chunk_genges, function(gene) genesnp_pairs[[gene]])))
     chunk_geno <- geno[, chunk_snps , drop = FALSE]
@@ -330,9 +330,9 @@ tryCatch({
     x <- mclapply(clustered$clusters, process_one_cluster, mc.cores = ncores)
 }, warning = function(w) {
     if (grepl("errors", w)) {
-        log_error(x[[1]])
+        log$error(x[[1]])
         stop(w)
     } else {
-        log_warn(w)
+        log$warn(w)
     }
 })

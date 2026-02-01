@@ -1,6 +1,4 @@
-source("{{biopipen_dir}}/utils/misc.R")
-
-library(glue)
+library(biopipen.utils)
 library(parallel)
 
 genofile <- {{in.geno | r}}
@@ -13,7 +11,9 @@ transpose_expr <- {{envs.transpose_expr | r}}
 transpose_cov <- {{envs.transpose_cov | r}}
 set.seed(1234)
 
-log_info("Reading genotype data ...")
+log <- get_logger()
+
+log$info("Reading genotype data ...")
 geno <- read.table(
     genofile,
     row.names = 1,
@@ -25,7 +25,7 @@ geno <- read.table(
 if (transpose_geno) { geno <- t(geno) }
 allsnps <- colnames(geno)
 
-log_info("Reading expression data ...")
+log$info("Reading expression data ...")
 expr <- read.table(
     exprfile,
     row.names = 1,
@@ -42,11 +42,11 @@ covdata <- NULL
 cov <- NULL
 
 if (is.null(covfile)) {
-    log_info("- Working on {length(samples)} common samples between genotype and expression data.")
+    log$info("- Working on {length(samples)} common samples between genotype and expression data.")
     geno <- geno[samples, , drop = FALSE]
     expr <- expr[samples, , drop = FALSE]
 } else {
-    log_info("Reading covariate data ...")
+    log$info("Reading covariate data ...")
     covdata <- read.table(
         covfile,
         row.names = 1,
@@ -58,15 +58,15 @@ if (is.null(covfile)) {
     if (transpose_cov) { covdata <- t(covdata) }
     ge_nsamples <- length(samples)
     samples <- intersect(samples, rownames(covdata))
-    log_info("- Working on {length(samples)} common samples between genotype, expression and covariate data.")
-    log_info("- Number of common samples between genotype and expression data: {ge_nsamples}")
+    log$info("- Working on {length(samples)} common samples between genotype, expression and covariate data.")
+    log$info("- Number of common samples between genotype and expression data: {ge_nsamples}")
     geno <- geno[samples, , drop = FALSE]
     expr <- expr[samples, , drop = FALSE]
     covdata <- covdata[samples, , drop = FALSE]
     cov <- paste0(sapply(colnames(covdata), bQuote), collapse = " + ")
 }
 
-log_info("Reading trio data ...")
+log$info("Reading trio data ...")
 trios <- read.table(
     triofile,
     row.names = NULL,
@@ -181,7 +181,7 @@ apply(trios, 1, function(row) {
     }
 })
 
-log_info("Writing formula files ...")
+log$info("Writing formula files ...")
 write.table(chow_df, file.path(chunk_dir, "formula-chow.txt"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
 write.table(intlm_df, file.path(chunk_dir, "formula-interactionlm.txt"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
 write.table(la_df, file.path(chunk_dir, "formula-la.txt"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
