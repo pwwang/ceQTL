@@ -2,7 +2,7 @@
 
 set exprfile ProcessExpr-output/FilterGenes/Lung.v8.normalized_expression.matrix.txt
 set genofile ProcessGT-output/Plink2GTMat/GTEx_Analysis_2017-06-05_v8_WholeGenomeSeq_838Indiv_Analysis_Freeze-gtmat.txt
-set covfile ../gtex-lung/raw/Lung.v8.covariates.txt
+set covfile raw/Lung.v8.covariates.txt
 
 set program_name (basename (status --current-filename))
 # if less than 4 arguments, print help

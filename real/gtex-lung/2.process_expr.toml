@@ -1,2 +1,2 @@
-tfgmt = "raw/TF-Gene.gmt"
-expr = "../gtex-lung/raw/Lung.v8.normalized_expression.bed.gz"
+tfgmt = "raw/TFLink_Homo_sapiens_interactions_SS_GMT_proteinName_v1.0.gmt"
+expr = "raw/Lung.v8.normalized_expression.bed.gz"
