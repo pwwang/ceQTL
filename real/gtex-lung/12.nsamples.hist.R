@@ -22,7 +22,7 @@ histdat <- histdat %>%
                  names_to = "genotype",
                  values_to = "count")
 
-print(histdata %>% group_by(genotype) %>%
+print(histdat %>% group_by(genotype) %>%
           summarise(mean_count = mean(count),
                     min_count = min(count),
                     max_count = max(count),
