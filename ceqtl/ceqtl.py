@@ -12,6 +12,7 @@ commands = {
     "manh": "Generate Manhattan plots",
     "med": "Run mediation analysis",
     "scatter": "Generate scatter plots",
+    "density": "Generate density plots by genotypes",
 }
 
 parser = argx.ArgumentParser(description="ceQTL pipeline and tools.")

@@ -198,4 +198,4 @@ nohup.out
 zhifu.trio.*.txt
 zfs_trio.txt
 /real/ceQTL_ZS/
-run_zfs_affinity_test.fish
+run_zfs_*.fish
